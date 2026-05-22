@@ -11,8 +11,12 @@ all: app u_tests
 app: $(OBJ_SHARED) main.o
 	$(CC) $(CFLAGS) -o app $(OBJ_SHARED) main.o
 
-test_avl: posting.o avl/avl.o avl/tests.o
-	$(CC) $(CFLAGS) -o test_avl posting.o avl/avl.o avl/tests.o
+# Пример исправления (пути уточните под свою структуру)
+test_avl: generic.o posting.o avl/avl.o avl/tests.o
+	$(CC) -o $@ $^
+
+generic.o: lab3/vector/generic.c lab3/vector/generic.h
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 test_rb: posting.o rbtree/rbtree.o rbtree/tests.o
 	$(CC) $(CFLAGS) -o test_rb posting.o rbtree/rbtree.o rbtree/tests.o
