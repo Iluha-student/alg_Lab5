@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 
-// ========== Вспомогательные функции для балансировки ==========
+// ========== Вспомогательные функции ==========
 
 static int height(AVLNode *node) {
     return node ? node->height : 0;
@@ -46,17 +46,14 @@ static AVLNode *rotateLeft(AVLNode *x) {
 
 static AVLNode *balance(AVLNode *node) {
     if (!node) return NULL;
-
     updateHeight(node);
-    int bf = balanceFactor(node);
 
-    // Left-heavy
+    int bf = balanceFactor(node);
     if (bf > 1) {
         if (balanceFactor(node->left) < 0)
             node->left = rotateLeft(node->left);
         return rotateRight(node);
     }
-    // Right-heavy
     if (bf < -1) {
         if (balanceFactor(node->right) > 0)
             node->right = rotateRight(node->right);
@@ -68,7 +65,7 @@ static AVLNode *balance(AVLNode *node) {
 // ========== Создание / удаление узлов ==========
 
 static AVLNode *createNode(const char *key, int doc_id, const char *title) {
-    AVLNode *node = (AVLNode *)malloc(sizeof(AVLNode));
+    AVLNode *node = malloc(sizeof(AVLNode));
     if (!node) return NULL;
 
     node->key = strdup(key);
@@ -95,7 +92,7 @@ static void freeNode(AVLNode *node) {
     freeNode(node->left);
     freeNode(node->right);
     free(node->key);
-    vectorFree(node->postings);
+    if (node->postings) vectorFree(node->postings);
     free(node);
 }
 
@@ -104,8 +101,13 @@ static void freeNode(AVLNode *node) {
 static AVLNode *insertNode(AVLNode *node, const char *key,
                            int doc_id, const char *title, int *is_new) {
     if (!node) {
+        AVLNode *new_node = createNode(key, doc_id, title);
+        if (!new_node) {
+            *is_new = 0;
+            return NULL;
+        }
         *is_new = 1;
-        return createNode(key, doc_id, title);
+        return new_node;
     }
 
     int cmp = strcmp(key, node->key);
@@ -114,7 +116,6 @@ static AVLNode *insertNode(AVLNode *node, const char *key,
     else if (cmp > 0)
         node->right = insertNode(node->right, key, doc_id, title, is_new);
     else {
-        // Ключ уже существует – добавляем документ в posting list
         appendPosting(node->postings, doc_id, title);
         *is_new = 0;
         return node;
@@ -123,10 +124,10 @@ static AVLNode *insertNode(AVLNode *node, const char *key,
     return balance(node);
 }
 
-// ========== Публичные API ==========
+// ========== Публичные функции ==========
 
 AVLTree *createAVLTree(void) {
-    AVLTree *tree = (AVLTree *)malloc(sizeof(AVLTree));
+    AVLTree *tree = malloc(sizeof(AVLTree));
     if (!tree) return NULL;
     tree->root = NULL;
     tree->size = 0;
