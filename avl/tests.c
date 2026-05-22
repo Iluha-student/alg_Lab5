@@ -3,17 +3,20 @@
 #include <string.h>
 #include "avl.h"
 
-// Вспомогательная функция для проверки содержимого posting list'а
+// ------------------------------------------------------------------
+// Вспомогательная функция проверки posting list'а
 static int checkPostings(Vector *list, int expected_ids[], int count) {
     if (!list) return count == 0;
     if ((int)list->size != count) return 0;
     for (size_t i = 0; i < list->size; i++) {
         PostingEntry *e = (PostingEntry *)getVectorItem(list, i);
+        if (!e) return 0;
         if (e->doc_id != expected_ids[i]) return 0;
     }
     return 1;
 }
 
+// ------------------------------------------------------------------
 static void test_create_free(void) {
     AVLTree *tree = createAVLTree();
     assert(tree != NULL);
@@ -31,6 +34,7 @@ static void test_insert_search_single(void) {
     assert(list != NULL);
     assert(list->size == 1);
     PostingEntry *e = (PostingEntry *)getVectorItem(list, 0);
+    assert(e != NULL);
     assert(e->doc_id == 1);
     assert(strcmp(e->title, "Hello World") == 0);
 
@@ -42,7 +46,7 @@ static void test_insert_duplicate(void) {
     AVLTree *tree = createAVLTree();
     avlInsert(tree, "key", 10, "Title A");
     avlInsert(tree, "key", 20, "Title B");
-    assert(tree->size == 1);          // размер не увеличивается
+    assert(tree->size == 1);   // размер не увеличивается
 
     Vector *list = avlSearch(tree, "key");
     int expected[] = {10, 20};
@@ -58,17 +62,18 @@ static void test_multiple_keys(void) {
     assert(tree->size == 3);
 
     Vector *v = avlSearch(tree, "apple");
-    assert(v->size == 1);
+    assert(v != NULL && v->size == 1);
     PostingEntry *e = (PostingEntry *)getVectorItem(v, 0);
-    assert(e->doc_id == 2);
+    assert(e != NULL && e->doc_id == 2);
 
     v = avlSearch(tree, "zebra");
     e = (PostingEntry *)getVectorItem(v, 0);
-    assert(e->doc_id == 1);
+    assert(e != NULL && e->doc_id == 1);
 
     freeAVLTree(tree);
 }
 
+// ------------------------------------------------------------------
 // Структура для сбора данных при обходе
 typedef struct {
     const char **keys;
@@ -76,7 +81,6 @@ typedef struct {
     int idx;
 } TraverseData;
 
-// Функция обратного вызова для avlTraverse
 static void collect_traverse(const char *key, Vector *postings, void *ctx) {
     TraverseData *data = (TraverseData *)ctx;
     data->keys[data->idx] = key;
@@ -108,6 +112,7 @@ static void test_traverse(void) {
 
 static void test_balance(void) {
     AVLTree *tree = createAVLTree();
+    // вставляем 100 элементов в отсортированном порядке — проверим балансировку
     for (int i = 0; i < 100; i++) {
         char key[20];
         sprintf(key, "key%d", i);
@@ -121,11 +126,12 @@ static void test_balance(void) {
         Vector *list = avlSearch(tree, key);
         assert(list != NULL && list->size == 1);
         PostingEntry *e = (PostingEntry *)getVectorItem(list, 0);
-        assert(e->doc_id == i);
+        assert(e != NULL && e->doc_id == i);
     }
     freeAVLTree(tree);
 }
 
+// ------------------------------------------------------------------
 int main(void) {
     test_create_free();
     test_insert_search_single();
