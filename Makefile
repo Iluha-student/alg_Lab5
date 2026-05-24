@@ -53,3 +53,4 @@ clean:
 	rm -f app test_avl test_rb test_btree
 	rm -f *.o avl/*.o rbtree/*.o btree/*.o index/*.o
 	rm -f data/index_*.txt data/test/docs.jsonl data/test/idx_*.txt
+
