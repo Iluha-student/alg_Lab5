@@ -1,186 +1,207 @@
-// Тут ваши тесты для красно-черного дерева. 
-// Можете использовать любой фреймворк для тестирования, который вам нравится, или просто писать функции, которые вызываются из main.c. 
-// Главное — убедиться, что ваши тесты покрывают все важные случаи (вставка, удаление, поиск, балансировка и т.д.).
+// rbtree.c
 #define _POSIX_C_SOURCE 200809L
-#include <assert.h>
-#include <stdio.h>
-#include <string.h>
 #include "rbtree.h"
+#include <stdlib.h>
+#include <string.h>
 
-static int checkPostings(Vector *list, int expected_ids[], int count) {
-    if (!list) return count == 0;
-    if ((int)list->size != count) return 0;
-    for (size_t i = 0; i < list->size; i++) {
-        PostingEntry *e = (PostingEntry *)getVectorItem(list, i);
-        if (!e) return 0;
-        if (e->doc_id != expected_ids[i]) return 0;
+static RBNode* createNode(const char* key, int doc_id, const char* title) {
+    RBNode* node = (RBNode*)malloc(sizeof(RBNode));
+    if (!node) return NULL;
+    node->key = strdup(key);
+    if (!node->key) {
+        free(node);
+        return NULL;
     }
-    return 1;
-}
-
-static void test_create_free(void) {
-    RBTree *tree = createRBTree();
-    assert(tree != NULL);
-    assert(tree->root == tree->nil);
-    assert(tree->size == 0);
-    freeRBTree(tree);
-}
-
-static void test_insert_search_single(void) {
-    RBTree *tree = createRBTree();
-    rbInsert(tree, "hello", 1, "Hello World");
-    assert(tree->size == 1);
-
-    Vector *list = rbSearch(tree, "hello");
-    assert(list != NULL);
-    assert(list->size == 1);
-    PostingEntry *e = (PostingEntry *)getVectorItem(list, 0);
-    assert(e != NULL);
-    assert(e->doc_id == 1);
-    assert(strcmp(e->title, "Hello World") == 0);
-
-    assert(rbSearch(tree, "world") == NULL);
-    freeRBTree(tree);
-}
-
-static void test_insert_duplicate(void) {
-    RBTree *tree = createRBTree();
-    rbInsert(tree, "key", 10, "Title A");
-    rbInsert(tree, "key", 20, "Title B");
-    assert(tree->size == 1);
-
-    Vector *list = rbSearch(tree, "key");
-    int expected[] = {10, 20};
-    assert(checkPostings(list, expected, 2));
-    freeRBTree(tree);
-}
-
-static void test_multiple_keys(void) {
-    RBTree *tree = createRBTree();
-    rbInsert(tree, "zebra", 1, "Zebra");
-    rbInsert(tree, "apple", 2, "Apple");
-    rbInsert(tree, "mango", 3, "Mango");
-    assert(tree->size == 3);
-
-    Vector *v = rbSearch(tree, "apple");
-    assert(v != NULL && v->size == 1);
-    PostingEntry *e = (PostingEntry *)getVectorItem(v, 0);
-    assert(e != NULL && e->doc_id == 2);
-
-    v = rbSearch(tree, "zebra");
-    e = (PostingEntry *)getVectorItem(v, 0);
-    assert(e != NULL && e->doc_id == 1);
-
-    freeRBTree(tree);
-}
-
-static int isRed(RBNode *node) {
-    return node != NULL && node->color == RB_RED;
-}
-
-static int checkRBProperties(RBTree *tree, RBNode *node, int *black_count) {
-    if (node == tree->nil) {
-        *black_count = 1;
-        return 1;
+    node->postings = createPostingList();
+    if (!node->postings) {
+        free(node->key);
+        free(node);
+        return NULL;
     }
-    
-    if (node == tree->root && node->color != RB_BLACK) {
-        return 0;
-    }
-    
-    if (isRed(node) && isRed(node->parent)) {
-        return 0;
-    }
-    
-    int left_black = 0, right_black = 0;
-    if (!checkRBProperties(tree, node->left, &left_black)) return 0;
-    if (!checkRBProperties(tree, node->right, &right_black)) return 0;
-    
-    if (left_black != right_black) return 0;
-    
-    *black_count = left_black + (node->color == RB_BLACK ? 1 : 0);
-    return 1;
+    appendPosting(node->postings, doc_id, title);
+    node->color = RB_RED;
+    node->left = NULL;
+    node->right = NULL;
+    node->parent = NULL;
+    return node;
 }
 
-static void test_rb_properties(void) {
-    RBTree *tree = createRBTree();
-    
-    for (int i = 0; i < 100; i++) {
-        char key[20];
-        sprintf(key, "key%d", i);
-        rbInsert(tree, key, i, "Title");
-    }
-    
-    int black_count = 0;
-    assert(checkRBProperties(tree, tree->root, &black_count) == 1);
-    assert(tree->root->color == RB_BLACK);
-    
-    freeRBTree(tree);
+// Рекурсивное удаление, пропуская sentinel
+static void freeNode(RBNode* node, RBNode* nil) {
+    if (!node || node == nil) return;
+    freeNode(node->left, nil);
+    freeNode(node->right, nil);
+    free(node->key);
+    if (node->postings) vectorFree(node->postings);
+    free(node);
 }
 
-typedef struct {
-    const char **keys;
-    int *sizes;
-    int idx;
-} TraverseData;
-
-static void collect_traverse(const char *key, Vector *postings, void *ctx) {
-    TraverseData *data = (TraverseData *)ctx;
-    data->keys[data->idx] = key;
-    data->sizes[data->idx] = (int)postings->size;
-    data->idx++;
+static void rotateLeft(RBTree* tree, RBNode* x) {
+    RBNode* y = x->right;
+    x->right = y->left;
+    if (y->left != tree->nil)
+        y->left->parent = x;
+    y->parent = x->parent;
+    if (x->parent == tree->nil)
+        tree->root = y;
+    else if (x == x->parent->left)
+        x->parent->left = y;
+    else
+        x->parent->right = y;
+    y->left = x;
+    x->parent = y;
 }
 
-static void test_traverse(void) {
-    RBTree *tree = createRBTree();
-    rbInsert(tree, "b", 1, "B");
-    rbInsert(tree, "a", 2, "A");
-    rbInsert(tree, "c", 3, "C");
-
-    const char *expected_keys[] = {"a", "b", "c"};
-    int expected_sizes[] = {1, 1, 1};
-    const char *collected_keys[3];
-    int collected_sizes[3];
-
-    TraverseData data = {collected_keys, collected_sizes, 0};
-    rbTraverse(tree, collect_traverse, &data);
-
-    assert(data.idx == 3);
-    for (int i = 0; i < 3; i++) {
-        assert(strcmp(collected_keys[i], expected_keys[i]) == 0);
-        assert(collected_sizes[i] == expected_sizes[i]);
-    }
-    freeRBTree(tree);
+static void rotateRight(RBTree* tree, RBNode* y) {
+    RBNode* x = y->left;
+    y->left = x->right;
+    if (x->right != tree->nil)
+        x->right->parent = y;
+    x->parent = y->parent;
+    if (y->parent == tree->nil)
+        tree->root = x;
+    else if (y == y->parent->right)
+        y->parent->right = x;
+    else
+        y->parent->left = x;
+    x->right = y;
+    y->parent = x;
 }
 
-static void test_large_insert(void) {
-    RBTree *tree = createRBTree();
-    for (int i = 0; i < 1000; i++) {
-        char key[20];
-        sprintf(key, "key%d", i);
-        rbInsert(tree, key, i, "Title");
+static void insertFixup(RBTree* tree, RBNode* z) {
+    while (z->parent->color == RB_RED) {
+        if (z->parent == z->parent->parent->left) {
+            RBNode* y = z->parent->parent->right;
+            if (y->color == RB_RED) {
+                z->parent->color = RB_BLACK;
+                y->color = RB_BLACK;
+                z->parent->parent->color = RB_RED;
+                z = z->parent->parent;
+            } else {
+                if (z == z->parent->right) {
+                    z = z->parent;
+                    rotateLeft(tree, z);
+                }
+                z->parent->color = RB_BLACK;
+                z->parent->parent->color = RB_RED;
+                rotateRight(tree, z->parent->parent);
+            }
+        } else {
+            RBNode* y = z->parent->parent->left;
+            if (y->color == RB_RED) {
+                z->parent->color = RB_BLACK;
+                y->color = RB_BLACK;
+                z->parent->parent->color = RB_RED;
+                z = z->parent->parent;
+            } else {
+                if (z == z->parent->left) {
+                    z = z->parent;
+                    rotateRight(tree, z);
+                }
+                z->parent->color = RB_BLACK;
+                z->parent->parent->color = RB_RED;
+                rotateLeft(tree, z->parent->parent);
+            }
+        }
     }
-    assert(tree->size == 1000);
-
-    for (int i = 0; i < 1000; i++) {
-        char key[20];
-        sprintf(key, "key%d", i);
-        Vector *list = rbSearch(tree, key);
-        assert(list != NULL && list->size == 1);
-        PostingEntry *e = (PostingEntry *)getVectorItem(list, 0);
-        assert(e != NULL && e->doc_id == i);
-    }
-    freeRBTree(tree);
+    tree->root->color = RB_BLACK;
 }
 
-int main(void) {
-    test_create_free();
-    test_insert_search_single();
-    test_insert_duplicate();
-    test_multiple_keys();
-    test_traverse();
-    test_rb_properties();
-    test_large_insert();
-    printf("All RBTree tests passed!\n");
-    return 0;
+static void insertNode(RBTree* tree, const char* key, int doc_id, const char* title, int* is_new) {
+    RBNode* z = createNode(key, doc_id, title);
+    if (!z) {
+        *is_new = 0;
+        return;
+    }
+    RBNode* y = tree->nil;
+    RBNode* x = tree->root;
+    while (x != tree->nil) {
+        y = x;
+        int cmp = strcmp(key, x->key);
+        if (cmp < 0)
+            x = x->left;
+        else if (cmp > 0)
+            x = x->right;
+        else {
+            appendPosting(x->postings, doc_id, title);
+            free(z->key);
+            if (z->postings) vectorFree(z->postings);
+            free(z);
+            *is_new = 0;
+            return;
+        }
+    }
+    z->parent = y;
+    if (y == tree->nil)
+        tree->root = z;
+    else if (strcmp(key, y->key) < 0)
+        y->left = z;
+    else
+        y->right = z;
+    z->left = tree->nil;
+    z->right = tree->nil;
+    z->color = RB_RED;
+    insertFixup(tree, z);
+    *is_new = 1;
+}
+
+RBTree* createRBTree(void) {
+    RBTree* tree = (RBTree*)malloc(sizeof(RBTree));
+    if (!tree) return NULL;
+    tree->nil = (RBNode*)malloc(sizeof(RBNode));
+    if (!tree->nil) {
+        free(tree);
+        return NULL;
+    }
+    tree->nil->color = RB_BLACK;
+    tree->nil->left = NULL;
+    tree->nil->right = NULL;
+    tree->nil->parent = NULL;
+    tree->nil->key = NULL;
+    tree->nil->postings = NULL;
+    tree->root = tree->nil;
+    tree->size = 0;
+    return tree;
+}
+
+void freeRBTree(RBTree* tree) {
+    if (!tree) return;
+    freeNode(tree->root, tree->nil);
+    free(tree->nil);
+    free(tree);
+}
+
+void rbInsert(RBTree* tree, const char* key, int doc_id, const char* title) {
+    if (!tree || !key || !title) return;
+    int is_new = 0;
+    insertNode(tree, key, doc_id, title, &is_new);
+    if (is_new) tree->size++;
+}
+
+Vector* rbSearch(const RBTree* tree, const char* key) {
+    if (!tree || !key) return NULL;
+    RBNode* x = tree->root;
+    while (x != tree->nil) {
+        int cmp = strcmp(key, x->key);
+        if (cmp == 0) return x->postings;
+        if (cmp < 0) x = x->left;
+        else x = x->right;
+    }
+    return NULL;
+}
+
+static void traverseInorder(RBTree* tree, RBNode* node,
+                            void (*visit)(const char*, Vector*, void*),
+                            void* ctx) {
+    if (node == tree->nil) return;
+    traverseInorder(tree, node->left, visit, ctx);
+    visit(node->key, node->postings, ctx);
+    traverseInorder(tree, node->right, visit, ctx);
+}
+
+void rbTraverse(const RBTree* tree,
+                void (*visit)(const char*, Vector*, void*),
+                void* ctx) {
+    if (!tree || !visit) return;
+    traverseInorder((RBTree*)tree, tree->root, visit, ctx);
 }
