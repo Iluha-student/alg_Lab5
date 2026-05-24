@@ -1,56 +1,81 @@
-CC     = gcc
-CFLAGS = -Wall -Wextra -std=c11 -O2 -g
-INCLUDE = -I. -I lab3/vector
+CC       = gcc
+CFLAGS   = -Wall -Wextra -std=c11 -O2 -g -I.
+LDFLAGS  =
 
-OBJ_SHARED = posting.o generic.o avl/avl.o rbtree/rbtree.o btree/btree.o \
-             index/index.o index/search.o
+# Общие объектные файлы (вектор, posting list)
+COMMON_OBJS = generic.o posting.o
 
-.PHONY: all app test_avl test_rb test_btree u_tests clean
+# Объектные файлы деревьев (используются в основном приложении)
+TREE_OBJS = avl/avl.o rbtree/rbtree.o btree/btree.o
 
-all: app
+# Объектные файлы индекса и поиска (для приложения)
+INDEX_OBJS = index/index.o index/search.o
 
-app: $(OBJ_SHARED) main.o
-	$(CC) $(CFLAGS) -o app $(OBJ_SHARED) main.o
+# Все объекты для приложения
+APP_OBJS = $(COMMON_OBJS) $(TREE_OBJS) $(INDEX_OBJS) main.o
 
-generic.o: lab3/vector/generic.c lab3/vector/generic.h
-	$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
+# --------------------- Цели по умолчанию ---------------------
+.PHONY: all app u_tests test clean
 
-posting.o: posting.c posting.h
-	$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
+all: app u_tests
 
-avl/avl.o: avl/avl.c avl/avl.h
-	$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
+# --------------------- Приложение ---------------------
+app: $(APP_OBJS)
+  $(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
 
-rbtree/rbtree.o: rbtree/rbtree.c rbtree/RBTree.h
-	$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
+# --------------------- Тесты ---------------------
+test_avl: $(COMMON_OBJS) avl/avl.o avl/tests.o
+  $(CC) $(CFLAGS) -o $@ $^
 
-btree/btree.o: btree/btree.c btree/btree.h
-	$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
+test_rb: $(COMMON_OBJS) rbtree/rbtree.o rbtree/tests.o
+  $(CC) $(CFLAGS) -o $@ $^
 
-index/index.o: index/index.c index/index.h
-	$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
+test_btree: $(COMMON_OBJS) btree/btree.o btree/tests.o
+  $(CC) $(CFLAGS) -o $@ $^
 
-index/search.o: index/search.c index/search.h
-	$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
-
-main.o: main.c
-	$(CC) $(CFLAGS) $(INCLUDE) -c -o $@ $<
-
-test_avl: generic.o posting.o avl/avl.o avl/tests.o
-	$(CC) $(CFLAGS) -o test_avl $^
-
-test_rb: generic.o posting.o rbtree/rbtree.o rbtree/tests.o
-	$(CC) $(CFLAGS) -o test_rb $^
-
-test_btree: generic.o posting.o btree/btree.o btree/tests.o
-	$(CC) $(CFLAGS) -o test_btree $^
-
+# Запуск всех модульных тестов
 u_tests: test_avl test_rb test_btree
-	./test_avl
-	./test_rb
-	./test_btree
+  ./test_avl
+  ./test_rb
+  ./test_btree
 
+# --------------------- End-to-end тесты ---------------------
+test: app
+  @echo "=== E2E: preprocessing ==="
+  mkdir -p data/test
+  python3 preprocess.py \
+    --input  data/test/Questions.csv \
+    --output data/test/docs.jsonl
+  @echo "=== E2E: indexing ==="
+  ./app index --type=avl   --data=data/test/docs.jsonl --index=data/test/idx_avl.txt
+  ./app index --type=rb    --data=data/test/docs.jsonl --index=data/test/idx_rb.txt
+  ./app index --type=btree --data=data/test/docs.jsonl --index=data/test/idx_btree.txt
+  @echo "=== E2E: searching ==="
+  ./app search --type=avl   --index=data/test/idx_avl.txt   --json "python list"
+  ./app search --type=rb    --index=data/test/idx_rb.txt    --json "python list"
+  ./app search --type=btree --index=data/test/idx_btree.txt --json "python list"
+  @echo "=== E2E OK ==="
+
+# --------------------- Правила компиляции ---------------------
+# Общее правило для всех .c файлов (включая поддиректории)
+%.o: %.c
+  $(CC) $(CFLAGS) -c -o $@ $<
+
+# Явные правила для объектных файлов из поддиректорий (необязательно, но для ясности)
+avl/avl.o: avl/avl.c avl/avl.h posting.h generic.h
+rbtree/rbtree.o: rbtree/rbtree.c rbtree/rbtree.h posting.h generic.h
+btree/btree.o: btree/btree.c btree/btree.h posting.h generic.h
+index/index.o: index/index.c index/index.h posting.h generic.h
+index/search.o: index/search.c index/search.h posting.h generic.h
+main.o: main.c index/index.h
+
+# Тестовые объекты зависят от соответствующих заголовков
+avl/tests.o: avl/tests.c avl/avl.h posting.h generic.h
+rbtree/tests.o: rbtree/tests.c rbtree/rbtree.h posting.h generic.h
+btree/tests.o: btree/tests.c btree/btree.h posting.h generic.h
+
+# --------------------- Очистка ---------------------
 clean:
-	rm -f app test_avl test_rb test_btree
-	rm -f *.o avl/*.o rbtree/*.o btree/*.o index/*.o
-
+  rm -f app test_avl test_rb test_btree
+  rm -f *.o avl/*.o rbtree/*.o btree/*.o index/*.o
+  rm -f data/index_*.txt data/test/docs.jsonl data/test/idx_*.txt
