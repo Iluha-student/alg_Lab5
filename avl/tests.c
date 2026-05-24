@@ -1,10 +1,10 @@
+#define _POSIX_C_SOURCE 200809L   // для strdup
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
 #include "avl.h"
 
-// ------------------------------------------------------------------
-// Вспомогательная функция проверки posting list'а
+// ----- Вспомогательная функция -----
 static int checkPostings(Vector *list, int expected_ids[], int count) {
     if (!list) return count == 0;
     if ((int)list->size != count) return 0;
@@ -16,7 +16,7 @@ static int checkPostings(Vector *list, int expected_ids[], int count) {
     return 1;
 }
 
-// ------------------------------------------------------------------
+// ----- Тесты -----
 static void test_create_free(void) {
     AVLTree *tree = createAVLTree();
     assert(tree != NULL);
@@ -46,7 +46,7 @@ static void test_insert_duplicate(void) {
     AVLTree *tree = createAVLTree();
     avlInsert(tree, "key", 10, "Title A");
     avlInsert(tree, "key", 20, "Title B");
-    assert(tree->size == 1);   // размер не увеличивается
+    assert(tree->size == 1);
 
     Vector *list = avlSearch(tree, "key");
     int expected[] = {10, 20};
@@ -73,8 +73,7 @@ static void test_multiple_keys(void) {
     freeAVLTree(tree);
 }
 
-// ------------------------------------------------------------------
-// Структура для сбора данных при обходе
+// ----- Обход -----
 typedef struct {
     const char **keys;
     int *sizes;
@@ -112,7 +111,6 @@ static void test_traverse(void) {
 
 static void test_balance(void) {
     AVLTree *tree = createAVLTree();
-    // вставляем 100 элементов в отсортированном порядке — проверим балансировку
     for (int i = 0; i < 100; i++) {
         char key[20];
         sprintf(key, "key%d", i);
@@ -131,7 +129,7 @@ static void test_balance(void) {
     freeAVLTree(tree);
 }
 
-// ------------------------------------------------------------------
+// ----- ТОЧКА ВХОДА -----
 int main(void) {
     test_create_free();
     test_insert_search_single();
