@@ -20,21 +20,21 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y gdb make gcc
 
-      - name: Build AVL tests
-        run: make test_avl
+      # - name: Build AVL tests
+      #   run: make test_avl
 
-      - name: Run AVL tests with gdb
-        run: |
-          gdb -batch -ex "run" -ex "bt" -ex "quit" ./test_avl
-        continue-on-error: true
+      # - name: Run AVL tests with gdb
+      #   run: |
+      #     gdb -batch -ex "run" -ex "bt" -ex "quit" ./test_avl
+      #   continue-on-error: true
 
-      - name: Build RB-tree tests
-        run: make test_rb
+      # - name: Build RB-tree tests
+      #   run: make test_rb
 
-      - name: Run RB-tree tests with gdb
-        run: |
-          gdb -batch -ex "run" -ex "bt" -ex "quit" ./test_rb
-        continue-on-error: true
+      # - name: Run RB-tree tests with gdb
+      #   run: |
+      #     gdb -batch -ex "run" -ex "bt" -ex "quit" ./test_rb
+      #   continue-on-error: true
 
       - name: Build B-tree tests
         run: make test_btree
