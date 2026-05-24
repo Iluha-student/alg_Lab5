@@ -1,8 +1,12 @@
 CC       = gcc
-CFLAGS   = -Wall -Wextra -std=c11 -O2 -g -I.
+CFLAGS   = -Wall -Wextra -std=c11 -O2 -g -I. -Ilab3/vector
 LDFLAGS  =
 
-COMMON_OBJS = generic.o posting.o
+# Путь к исходникам вектора
+VECTOR_SRCDIR = lab3/vector
+VECTOR_OBJ    = generic.o
+
+COMMON_OBJS = $(VECTOR_OBJ) posting.o
 TREE_OBJS   = avl/avl.o rbtree/rbtree.o btree/btree.o
 INDEX_OBJS  = index/index.o index/search.o
 APP_OBJS    = $(COMMON_OBJS) $(TREE_OBJS) $(INDEX_OBJS) main.o
@@ -10,6 +14,14 @@ APP_OBJS    = $(COMMON_OBJS) $(TREE_OBJS) $(INDEX_OBJS) main.o
 .PHONY: all app u_tests test clean
 
 all: app u_tests
+
+# Правило для компиляции generic.o из поддиректории
+$(VECTOR_OBJ): $(VECTOR_SRCDIR)/generic.c $(VECTOR_SRCDIR)/generic.h
+	$(CC) $(CFLAGS) -c -o $@ $<
+
+# Общее правило для остальных .c файлов
+%.o: %.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 app: $(APP_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
@@ -44,19 +56,19 @@ test: app
 	./app search --type=btree --index=data/test/idx_btree.txt --json "python list"
 	@echo "=== E2E OK ==="
 
-%.o: %.c
-	$(CC) $(CFLAGS) -c -o $@ $<
+# Зависимости (чтобы перекомпилировалось при изменении заголовков)
+$(VECTOR_OBJ):   lab3/vector/generic.h
+posting.o:       posting.h $(VECTOR_SRCDIR)/generic.h
+avl/avl.o:       avl/avl.h posting.h $(VECTOR_SRCDIR)/generic.h
+rbtree/rbtree.o: rbtree/rbtree.h posting.h $(VECTOR_SRCDIR)/generic.h
+btree/btree.o:   btree/btree.h posting.h $(VECTOR_SRCDIR)/generic.h
+index/index.o:   index/index.h posting.h $(VECTOR_SRCDIR)/generic.h
+index/search.o:  index/search.h posting.h $(VECTOR_SRCDIR)/generic.h
+main.o:          index/index.h
 
-avl/avl.o: avl/avl.c avl/avl.h posting.h generic.h
-rbtree/rbtree.o: rbtree/rbtree.c rbtree/rbtree.h posting.h generic.h
-btree/btree.o: btree/btree.c btree/btree.h posting.h generic.h
-index/index.o: index/index.c index/index.h posting.h generic.h
-index/search.o: index/search.c index/search.h posting.h generic.h
-main.o: main.c index/index.h
-
-avl/tests.o: avl/tests.c avl/avl.h posting.h generic.h
-rbtree/tests.o: rbtree/tests.c rbtree/rbtree.h posting.h generic.h
-btree/tests.o: btree/tests.c btree/btree.h posting.h generic.h
+avl/tests.o:     avl/avl.h posting.h $(VECTOR_SRCDIR)/generic.h
+rbtree/tests.o:  rbtree/rbtree.h posting.h $(VECTOR_SRCDIR)/generic.h
+btree/tests.o:   btree/btree.h posting.h $(VECTOR_SRCDIR)/generic.h
 
 clean:
 	rm -f app test_avl test_rb test_btree
