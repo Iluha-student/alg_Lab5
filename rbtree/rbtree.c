@@ -1,5 +1,3 @@
-// Полностью на ваше усмотрение (только переиспользуйте код из предыдущих лабораторных, если он вам подходит)
-// rbtree.c
 #define _POSIX_C_SOURCE 200809L
 #include "rbtree.h"
 #include <stdlib.h>
@@ -8,33 +6,20 @@
 static RBNode* createNode(const char* key, int doc_id, const char* title) {
     RBNode* node = (RBNode*)malloc(sizeof(RBNode));
     if (!node) return NULL;
-    
     node->key = strdup(key);
-    if (!node->key) {
-        free(node);
-        return NULL;
-    }
-    
+    if (!node->key) { free(node); return NULL; }
     node->postings = createPostingList();
-    if (!node->postings) {
-        free(node->key);
-        free(node);
-        return NULL;
-    }
-    
+    if (!node->postings) { free(node->key); free(node); return NULL; }
     appendPosting(node->postings, doc_id, title);
     node->color = RB_RED;
-    node->left = NULL;
-    node->right = NULL;
-    node->parent = NULL;
-    
+    node->left = node->right = node->parent = NULL;
     return node;
 }
 
-static void freeNode(RBTree* tree, RBNode* node) {
-    if (!node) return;
-    freeNode(tree, node->left);
-    freeNode(tree, node->right);
+static void freeNode(RBNode* node, RBNode* nil) {
+    if (!node || node == nil) return;
+    freeNode(node->left, nil);
+    freeNode(node->right, nil);
     free(node->key);
     if (node->postings) vectorFree(node->postings);
     free(node);
@@ -43,19 +28,11 @@ static void freeNode(RBTree* tree, RBNode* node) {
 static void rotateLeft(RBTree* tree, RBNode* x) {
     RBNode* y = x->right;
     x->right = y->left;
-    
-    if (y->left != tree->nil)
-        y->left->parent = x;
-    
+    if (y->left != tree->nil) y->left->parent = x;
     y->parent = x->parent;
-    
-    if (x->parent == tree->nil)
-        tree->root = y;
-    else if (x == x->parent->left)
-        x->parent->left = y;
-    else
-        x->parent->right = y;
-    
+    if (x->parent == tree->nil) tree->root = y;
+    else if (x == x->parent->left) x->parent->left = y;
+    else x->parent->right = y;
     y->left = x;
     x->parent = y;
 }
@@ -63,19 +40,11 @@ static void rotateLeft(RBTree* tree, RBNode* x) {
 static void rotateRight(RBTree* tree, RBNode* y) {
     RBNode* x = y->left;
     y->left = x->right;
-    
-    if (x->right != tree->nil)
-        x->right->parent = y;
-    
+    if (x->right != tree->nil) x->right->parent = y;
     x->parent = y->parent;
-    
-    if (y->parent == tree->nil)
-        tree->root = x;
-    else if (y == y->parent->right)
-        y->parent->right = x;
-    else
-        y->parent->left = x;
-    
+    if (y->parent == tree->nil) tree->root = x;
+    else if (y == y->parent->right) y->parent->right = x;
+    else y->parent->left = x;
     x->right = y;
     y->parent = x;
 }
@@ -121,22 +90,15 @@ static void insertFixup(RBTree* tree, RBNode* z) {
 
 static void insertNode(RBTree* tree, const char* key, int doc_id, const char* title, int* is_new) {
     RBNode* z = createNode(key, doc_id, title);
-    if (!z) {
-        *is_new = 0;
-        return;
-    }
-    
+    if (!z) { *is_new = 0; return; }
     RBNode* y = tree->nil;
     RBNode* x = tree->root;
-    
     while (x != tree->nil) {
         y = x;
         int cmp = strcmp(key, x->key);
-        if (cmp < 0) {
-            x = x->left;
-        } else if (cmp > 0) {
-            x = x->right;
-        } else {
+        if (cmp < 0) x = x->left;
+        else if (cmp > 0) x = x->right;
+        else {
             appendPosting(x->postings, doc_id, title);
             free(z->key);
             if (z->postings) vectorFree(z->postings);
@@ -145,21 +107,13 @@ static void insertNode(RBTree* tree, const char* key, int doc_id, const char* ti
             return;
         }
     }
-    
     z->parent = y;
-    
-    if (y == tree->nil) {
-        tree->root = z;
-    } else if (strcmp(key, y->key) < 0) {
-        y->left = z;
-    } else {
-        y->right = z;
-    }
-    
+    if (y == tree->nil) tree->root = z;
+    else if (strcmp(key, y->key) < 0) y->left = z;
+    else y->right = z;
     z->left = tree->nil;
     z->right = tree->nil;
     z->color = RB_RED;
-    
     insertFixup(tree, z);
     *is_new = 1;
 }
@@ -167,29 +121,21 @@ static void insertNode(RBTree* tree, const char* key, int doc_id, const char* ti
 RBTree* createRBTree(void) {
     RBTree* tree = (RBTree*)malloc(sizeof(RBTree));
     if (!tree) return NULL;
-    
     tree->nil = (RBNode*)malloc(sizeof(RBNode));
-    if (!tree->nil) {
-        free(tree);
-        return NULL;
-    }
-    
+    if (!tree->nil) { free(tree); return NULL; }
     tree->nil->color = RB_BLACK;
-    tree->nil->left = NULL;
-    tree->nil->right = NULL;
-    tree->nil->parent = NULL;
+    tree->nil->left = tree->nil->right = tree->nil->parent = NULL;
     tree->nil->key = NULL;
     tree->nil->postings = NULL;
-    
     tree->root = tree->nil;
     tree->size = 0;
-    
     return tree;
 }
 
 void freeRBTree(RBTree* tree) {
     if (!tree) return;
-    freeNode(tree, tree->root);
+    if (tree->root != tree->nil)
+        freeNode(tree->root, tree->nil);
     free(tree->nil);
     free(tree);
 }
@@ -203,7 +149,6 @@ void rbInsert(RBTree* tree, const char* key, int doc_id, const char* title) {
 
 Vector* rbSearch(const RBTree* tree, const char* key) {
     if (!tree || !key) return NULL;
-    
     RBNode* x = tree->root;
     while (x != tree->nil) {
         int cmp = strcmp(key, x->key);
