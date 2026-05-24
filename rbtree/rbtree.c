@@ -1,6 +1,6 @@
 // Полностью на ваше усмотрение (только переиспользуйте код из предыдущих лабораторных, если он вам подходит)
 // rbtree.c
-#include "RBTree.h"
+#include "rbtree.h"
 #include <stdlib.h>
 #include <string.h>
 
