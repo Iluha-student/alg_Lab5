@@ -5,7 +5,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include "RBTree.h"
+#include "rbtree.h"
 
 static int checkPostings(Vector *list, int expected_ids[], int count) {
     if (!list) return count == 0;
