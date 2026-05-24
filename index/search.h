@@ -14,8 +14,19 @@ typedef struct {
     double  time_ms;
 } SearchResults;
 
+/* Структура для кандидата при нечётком поиске */
+typedef struct {
+    char    term[256];
+    int     distance;
+    Vector* postings;   /* клонированный posting list */
+} FuzzyCandidate;
+
 Vector*        intersectPostings(Vector** lists, int n);
 SearchResults* search(Index* idx, const char* query);
 void           printResultsText(const SearchResults* sr);
 void           printResultsJSON(const SearchResults* sr);
 void           freeSearchResults(SearchResults* sr);
+
+/* Функции нечёткого поиска */
+Vector*        fuzzyFindCandidates(Index* idx, const char* term, int max_distance);
+SearchResults* fuzzySearch(Index* idx, const char* query, int max_distance);
